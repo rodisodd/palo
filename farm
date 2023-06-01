@@ -1,9 +1,38 @@
-while not game:IsLoaded() do wait(1) end
-wait(2)
-targetmulti = 2 -- If The Multiplier Of A Coin Is Higher Or Equal To This It Will Break It
-breakgiantchest = true -- Weather To Break The Giant Mine Chest Even If Its Below The Multi
-breakbigchests = true -- Weather To Break The Big Mine Chests Even If They Are Below The Multi
-WEBHOOK = "https://discordapp.com/api/webhooks/1113040538678083608/6I1gxr_sDcxxjFHoyoxfWnT_-pJEp4FHblN9F0VQzYFA5TXcYTpMgqF2fdUUJaJuK2Sm" -- Webhook
+if not game:IsLoaded() then
+    while not game:IsLoaded() do wait(1) end
+end
+wait(0.5)
+
+settingsconfig = {
+	targetmulti = 3,
+	breakgiantchest = true,
+	breakbigchests = true,
+	breakpresents = false,
+	breakvaults = true,
+	ignorepresents = false,
+	autotripledamage = true,
+	autoserverdamage = true,
+	safetyrange = 500, -- If you are within this much studs as another player it will server hop (set to 0 if you dont want it to do this)
+	webhook = "https://discord.com/api/webhooks/1113040538678083608/6I1gxr_sDcxxjFHoyoxfWnT_-pJEp4FHblN9F0VQzYFA5TXcYTpMgqF2fdUUJaJuK2Sm",
+    timeframewh = "https://discord.com/api/webhooks/1113870469649670244/HEhjyOHTUQQzYwNghPqIyB5BIHK3NLibKe3h07uQx0WVJsE1uCl-74tDIh_FF8gM0bbz",
+    timeframe = 600 -- Seconds
+}
+
+local SettingsJson = game:GetService("HttpService"):JSONEncode(settingsconfig)
+writefile("settings.txt", SettingsJson)
+
+local file = readfile("settings.txt")
+local settings = game:GetService("HttpService"):JSONDecode(file)
+
+local targetmulti = tonumber(settings.targetmulti) or 5
+local breakgiantchest = settings.breakgiantchest or true
+local breakbigchests = settings.breakbigchests or true
+local breakpresents = settings.breakpresents or false
+local breakvaults = settings.breakvaults or false
+local ignorepresents = settings.ignorepresents or false
+local WEBHOOK = settings.webhook or ""
+local AutoTripleDamage = settings.autotripledamage or true
+local AutoServerDamage = settings.autoserverdamage or true
 
 local oldJob = game.JobId
 
@@ -22,50 +51,70 @@ end)
 
 Lib = require(game:GetService("ReplicatedStorage").Library)
 
-wait(6)
+wait(0.1)
 
-local platform = nil
-local teleportingEnabled = true
+local player = game.Players.LocalPlayer
+local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+local detectionRange = settings.safetyrange or 500
 
-if not workspace:FindFirstChild("Platform") then
-    platform = Instance.new("Part")
-    platform.Name = "Platform"
-    platform.Parent = workspace
-    platform.Anchored = true
-    platform.Position = Vector3.new(9043.19141, -30.3321552, 2424.63647, -0.938255966, 7.68024719e-08, 0.345941782, 8.24376656e-08, 1, 1.57588176e-09, -0.345941782, 2.99972136e-08, -0.938255966)
-    platform.Size = Vector3.new(10, 1, 10)
-    platform.BrickColor = BrickColor.new("Baby blue")
-    platform.Transparency = 0.7
-else
-    platform = workspace.Platform
-end
-
-game:GetService("RunService").Heartbeat:Connect(function()
-    local character = game:GetService("Players").LocalPlayer.Character
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local rootPart = character.HumanoidRootPart
-        local distanceToPlatform = (rootPart.Position - platform.Position).Magnitude
-        if distanceToPlatform > 5 then
-            rootPart.CFrame = CFrame.new(platform.Position + Vector3.new(0, 2, 0))
+local function isPlayerInRange(player)
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        local playerRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        local playerPosition = playerRootPart and playerRootPart.Position
+        if playerPosition then
+            local playerDistance = (playerPosition - humanoid.RootPart.Position).Magnitude
+            return playerDistance <= detectionRange
         end
     end
-end)
-
-local function serverHop()
-    repeat
-        local data = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&excludeFullGames=true&limit=100"))
-        local bestserver
-        for i,v in pairs(data.data) do
-          if (tonumber(v.playing) < 12) and (tonumber(v.playing) > 1) then
-            bestserver = v.id
-          end
-        end
-        
-        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, bestserver, game.Players.LocalPlayer)
-        task.wait(1)
-    until oldJob ~= game.JobId
+    return false
 end
 
+local function checkNearbyPlayers()
+    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player then
+            if isPlayerInRange(otherPlayer) then
+                function sHopper()
+				    local endpoint = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/6284583030/servers/Public?sortOrder=Asc&limit=100'))
+				    bestserver = {
+				        p = 0
+				    }
+				    function shuffleTable(tbl)
+				        local size = #tbl
+				        for i = size, 1, -1 do
+				            local rand = math.random(size)
+				            tbl[i], tbl[rand] = tbl[rand], tbl[i]
+				        end
+				        return tbl
+				    end
+				    randomdata = shuffleTable(endpoint.data)
+				    for i, v in pairs(randomdata) do
+				        if v.playing > bestserver['p'] and v.playing <= 2 then
+				            bestserver['id'] = v.id
+				            bestserver['p'] = v.playing
+				        end
+				    end
+				    game:GetService("TeleportService"):TeleportToPlaceInstance(6284583030, bestserver.id, game.Players.LocalPlayer)
+				end
+					while 1 do
+					    oldid = game.JobId
+					    sHopper()
+					    task.wait(1)
+					    if oldid ~= game.JobId then
+					        break
+					    end
+					end
+            end
+        end
+    end
+end
+
+coi = coroutine.create(function()
+	while true do
+	    checkNearbyPlayers()
+	    wait(1)
+	end
+end)
+coroutine.resume(coi)
 local TimeElapsed = 0
 local GemsEarned = 0
 local TotalGemsEarned = 0
@@ -111,13 +160,13 @@ function WH()
             ["content"] = "",
             ["embeds"] = {
 			    {
-			      ["title"] = "Server Hop Stat Update",
+			      ["title"] = "Server Hop Stat Update (v3)",
 			      ["description"] = "Successfully Broke Everything In Server. Hopping To New Server!",
-			      ["color"] = 5814783,
+			      ["color"] = tonumber(0x0f0063),
 			      ["fields"] = {
 			        {
 			          ["name"] = "Stats",
-			          ["value"] = ":clock1: **Time Taken:** ``"..TimeElapsed.."s``\n:gem: **Gems Earned:** ``"..add_suffix(GemsEarned).."``\n:map: **Farming:** ``"..AREATOCHECK.."``"
+			          ["value"] = ":clock1: **Time Taken:** ``"..TimeElapsed.."s``\n:gem: **Gems Earned:** ``"..add_suffix(GemsEarned).."``\n:gem: **Total Gems Earned:** ``" .. add_suffix(TotalGemsEarned) .. "``\n:map: **Farming:** ``"..AREATOCHECK.."``"
 			        }
 			      },
 			      ["author"] = {
@@ -161,40 +210,100 @@ for i, v in pairs(AllC) do
 				AllNeededCoins[i] = v
 			end
 		end
-		if M >= targetmulti then
-			AllNeededCoins[i] = v
+		if breakpresents then
+			if string.find(v.n, "Present") then
+				AllNeededCoins[i] = v
+			end
+		end
+		if breakvaults then
+			if string.find(v.n, "Vault") or string.find(v.n, "Safe") then
+				AllNeededCoins[i] = v
+			end
+		end
+		if ignorepresents then
+			if M >= targetmulti and not string.find(v.n, "Present") then
+				AllNeededCoins[i] = v
+			end
+		else
+			if M >= targetmulti then
+				AllNeededCoins[i] = v
+			end
 		end
 	end
 end
-game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(9043.19141, -14.3321552, 2424.63647, -0.938255966, 7.68024719e-08, 0.345941782, 8.24376656e-08, 1, 1.57588176e-09, -0.345941782, 2.99972136e-08, -0.938255966)
+if game.Workspace:FindFirstChild("plat") then game.Workspace.plat:Destroy() end
+local p = Instance.new("Part") 
+p.Anchored = true
+p.Name = "plat"
+p.Position = Vector3.new(9043.19140625, -38.66098690032959, 2424.636474609375)
+p.Size = Vector3.new(100, 1, 100)
+p.Parent = game.Workspace
+local gui = Instance.new("SurfaceGui")
+gui.Parent = p
+gui.Face = Enum.NormalId.Top
+local textLabel = Instance.new("TextLabel")
+textLabel.Text = "Gem Farmer Made By henrymistert#3888 (.gg/henrymistert)"
+textLabel.Size = UDim2.new(1, 0, 1, 0)
+textLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+textLabel.TextColor3 = Color3.new(0, 0, 0)
+textLabel.FontSize = Enum.FontSize.Size14
+textLabel.Parent = gui
+textLabel.TextScaled = true
+game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(9043.19141, -34.3321552, 2424.63647, -0.938255966, 7.68024719e-08, 0.345941782, 8.24376656e-08, 1, 1.57588176e-09, -0.345941782, 2.99972136e-08, -0.938255966)
+
 Fire("Performed Teleport")
-wait(0.5)
+wait(0.1)
 PETS = Lib.Save.Get().PetsEquipped
 newP = {}
 for i,v in pairs(PETS) do table.insert(newP, i) end
-function ForeverPickupOrbs()
-      while true do
-        orbs = {}
-        for i, v in pairs (game.Workspace['__THINGS'].Orbs:GetChildren()) do
-            table.insert(orbs, v.Name)
+game.Workspace['__THINGS'].Orbs.ChildAdded:Connect(function(v)
+	Fire("Claim Orbs", {v.Name})
+end)
+game.Workspace['__THINGS'].Lootbags.ChildAdded:Connect(function(v)
+	Fire("Collect Lootbag", v.Name, v.Position)
+end)
+boostco = coroutine.create(function()
+    while 1 do
+        wait(2)
+	  if AutoTripleDamage then
+        boostName = "Triple Damage"
+        local Library = require(game.ReplicatedStorage.Framework.Library)
+        local save = Library.Save.Get()
+        found = false
+        for i, v in pairs(save.Boosts) do
+            if i == boostName then
+                found = true
+            end
         end
-        Fire("Claim Orbs", orbs)
-        wait(0.1)
-        for i, v in pairs(game.Workspace['__THINGS'].Lootbags:GetChildren()) do
-            Fire("Collect Lootbag", v.Name, v.Position)
+        if not found then
+            Fire("Activate Boost", boostName)
         end
-      end
+	  end
+	  if AutoServerDamage then
+            boostName = "Triple Damage"
+            local Library = require(game.ReplicatedStorage.Library)
+            Library.Load()
+            found = false
+            for i, v in pairs(Library.ServerBoosts.GetActiveBoosts()) do
+                if i == boostName then
+                    found = true
+                end
+            end
+            if not found then
+                Fire("Activate Server Boost", boostName)
+            end
+        end
     end
-    c1 = coroutine.create(ForeverPickupOrbs)
-    coroutine.resume(c1)
+end)
+coroutine.resume(boostco)
 for i, v in pairs(AllNeededCoins) do
 	local v86 = Invoke("Join Coin", i, newP)
 	for v88, v89 in pairs(v86) do
     	Fire("Farm Coin", i, v88);
 	end
 	while 1 do
-		wait(0.1)
-		AllC = Invoke("Get Coins")
+		wait(0.01)
+		AllC = debug.getupvalue(getsenv(game.Players.LocalPlayer.PlayerScripts.Scripts.Game:WaitForChild("Coins", 10)).DestroyAllCoins, 1)
 		f = false
 		for i2,v2 in pairs(AllC) do
 			if i2 == i then f = true end
@@ -205,77 +314,80 @@ end
 wait(5)
 local EndingGems = Library.Save.Get().Diamonds
 GemsEarned = EndingGems - StartingGems
-WH()
-wait(1)
-writefile("HOP.txt", "a")
-local PlaceID = game.PlaceId
-local AllIDs = {}
-local foundAnything = ""
-local actualHour = os.date("!*t").hour
-local Deleted = false
-local File = pcall(function()
-    AllIDs = game:GetService('HttpService'):JSONDecode(readfile("NotSameServers.json"))
-end)
-if not File then
-    table.insert(AllIDs, actualHour)
-    writefile("NotSameServers.json", game:GetService('HttpService'):JSONEncode(AllIDs))
+if not isfile("gemtotal.txt") then writefile("gemtotal.txt", "0") end
+if not isfile("timetotal.txt") then
+    writefile("timetotal.txt", "0") end
+if not isfile("timeframe.txt") then
+    writefile("timeframe.txt", "0")
 end
-function TPReturner()
-    local Site;
-    if foundAnything == "" then
-        Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
-    else
-        Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
+TotalGemsEarned = GemsEarned + tonumber(readfile("gemtotal.txt"))
+writefile("gemtotal.txt", tostring(TotalGemsEarned))
+tt = tonumber(readfile("timetotal.txt"))
+tt = tt + TimeElapsed
+writefile("timeframe.txt", tostring(GemsEarned + tonumber(readfile("timeframe.txt"))))
+writefile("timetotal.txt", tostring(tt))
+if tt >= settingsconfig.timeframe then
+    writefile("timetotal.txt", "0")
+    request({
+		Url = settingsconfig.timeframewh,
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode{
+            ["content"] = "",
+            ["embeds"] = {
+			    {
+			      ["title"] = "Time Frame Stat Update (" .. settingsconfig.timeframe .. "s)",
+			      ["description"] = "Gem update",
+			      ["color"] = tonumber(0x0f0063),
+			      ["fields"] = {
+			        {
+			          ["name"] = "Stats",
+			          ["value"] = ":gem: **Earnings:** ``".. add_suffix(tonumber(readfile("timeframe.txt"))) .."``"
+			        }
+			      },
+			      ["author"] = {
+			        ["name"] = "Mystic Farmer - Stats"
+			      }
+			    }
+			  }
+			  }
+	})
+    writefile("timeframe.txt", "0")
+end
+pcall(WH)
+wait(1)
+
+-- Replace Everything After This With Your Own Server Hopper If You Want To Use Your Own (Or Use The Hopper In #script) :)
+
+function sHopper()
+    local endpoint = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/6284583030/servers/Public?sortOrder=Asc&limit=100'))
+    bestserver = {
+        p = 0
+    }
+    function shuffleTable(tbl)
+        local size = #tbl
+        for i = size, 1, -1 do
+            local rand = math.random(size)
+            tbl[i], tbl[rand] = tbl[rand], tbl[i]
+        end
+        return tbl
     end
-    local ID = ""
-    if Site.nextPageCursor and Site.nextPageCursor ~= "null" and Site.nextPageCursor ~= nil then
-        foundAnything = Site.nextPageCursor
-    end
-    local num = 0;
-    for i,v in pairs(Site.data) do
-        local Possible = true
-        ID = tostring(v.id)
-        if tonumber(v.maxPlayers) > tonumber(v.playing) then
-            for _,Existing in pairs(AllIDs) do
-                if num ~= 0 then
-                    if ID == tostring(Existing) then
-                        Possible = false
-                    end
-                else
-                    if tonumber(actualHour) ~= tonumber(Existing) then
-                        local delFile = pcall(function()
-                            delfile("NotSameServers.json")
-                            AllIDs = {}
-                            table.insert(AllIDs, actualHour)
-                        end)
-                    end
-                end
-                num = num + 1
-            end
-            if Possible == true then
-                table.insert(AllIDs, ID)
-                wait()
-                pcall(function()
-                    writefile("NotSameServers.json", game:GetService('HttpService'):JSONEncode(AllIDs))
-                    wait()
-                    game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceID, ID, game.Players.LocalPlayer)
-                end)
-                wait(4)
-            end
+    randomdata = shuffleTable(endpoint.data)
+    for i, v in pairs(randomdata) do
+        if v.playing > bestserver['p'] and v.playing <= 2 then
+            bestserver['id'] = v.id
+            bestserver['p'] = v.playing
         end
     end
+    game:GetService("TeleportService"):TeleportToPlaceInstance(6284583030, bestserver.id, game.Players.LocalPlayer)
 end
-
-function Teleport()
-    while wait() do
-        pcall(function()
-            TPReturner()
-            if foundAnything ~= "" then
-                TPReturner()
-            end
-        end)
+while 1 do
+    oldid = game.JobId
+    sHopper()
+    task.wait(1)
+    if oldid ~= game.JobId then
+        break
     end
 end
-
--- If you'd like to use a script before server hopping (Like a Automatic Chest collector you can put the Teleport() after it collected everything.
-Teleport()
